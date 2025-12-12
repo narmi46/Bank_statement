@@ -22,12 +22,6 @@ st.title("📄 Bank Statement Parser (Multi-File Support)")
 st.write("Upload one or more bank statement PDFs to extract transactions.")
 
 # ---------------------------------------------------
-# Config
-# ---------------------------------------------------
-
-DEFAULT_YEAR = "2025"  # Change once here if needed
-
-# ---------------------------------------------------
 # Bank Selection (NO AUTO-DETECT)
 # ---------------------------------------------------
 
@@ -42,6 +36,15 @@ bank_hint = {
     "RHB Bank": "rhb",
     "CIMB Bank": "cimb",
 }[bank_choice]
+
+# ---------------------------------------------------
+# Default Year (RESTORED)
+# ---------------------------------------------------
+
+default_year = st.text_input(
+    "Default Year (used if statement has no year)",
+    value="2025"
+)
 
 # ---------------------------------------------------
 # File Upload
@@ -74,14 +77,14 @@ if uploaded_files:
                         tx = parse_transactions_maybank(
                             text,
                             page_num,
-                            DEFAULT_YEAR
+                            default_year
                         )
 
                     elif bank_hint == "pbb":
                         tx = parse_transactions_pbb(
                             text,
                             page_num,
-                            DEFAULT_YEAR
+                            default_year
                         )
 
                     elif bank_hint == "rhb":
@@ -114,7 +117,6 @@ if all_tx:
 
     df = pd.DataFrame(all_tx)
 
-    # Enforce column order if present
     columns = [
         "date",
         "description",
