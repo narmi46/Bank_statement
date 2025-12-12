@@ -1,81 +1,58 @@
 import regex as re
 
 # ============================================================
-# YEAR DETECTION
+# MAYBANK (MTASB + MBB) COMBINED PARSER
 # ============================================================
 
-STATEMENT_YEAR_PATTERN = re.compile(
-    r"STATEMENT\s+DATE\s*:?\s*\d{2}/\d{2}/(\d{2,4})",
-    re.IGNORECASE
-)
-
-# 🔑 module-level cache (persists across pages)
-_CACHED_STATEMENT_YEAR = None
-
-
-def extract_statement_year(text, fallback_year):
-    global _CACHED_STATEMENT_YEAR
-
-    # If already detected earlier, reuse it
-    if _CACHED_STATEMENT_YEAR:
-        return _CACHED_STATEMENT_YEAR
-
-    m = STATEMENT_YEAR_PATTERN.search(text)
-    if not m:
-        return fallback_year
-
-    y = m.group(1)
-    if len(y) == 2:
-        year = f"20{y}"
-    else:
-        year = y
-
-    _CACHED_STATEMENT_YEAR = year
-    return year
-
-
-# ============================================================
-# MTASB FORMAT
-# ============================================================
-
+# -------------------------------
+# MTASB Pattern (Maybank Variant)
+# Example: "01/05 TRANSFER TO A/C 320.00+ 43,906.52"
+# -------------------------------
 PATTERN_MAYBANK_MTASB = re.compile(
-    r"(\d{2}/\d{2})\s+"
-    r"(.+?)\s+"
-    r"([0-9,]+\.\d{2})([+-])\s+"
-    r"([0-9,]+\.\d{2})"
+    r"(\d{2}/\d{2})\s+"             # 01/05
+    r"(.+?)\s+"                     # description
+    r"([0-9,]+\.\d{2})([+-])\s+"    # amount + sign
+    r"([0-9,]+\.\d{2})"             # balance
 )
 
 
-def parse_line_maybank_mtasb(line, page_num, year):
+def parse_line_maybank_mtasb(line, page_num, default_year="2025"):
     m = PATTERN_MAYBANK_MTASB.search(line)
     if not m:
         return None
 
     date_raw, desc, amount_raw, sign, balance_raw = m.groups()
     day, month = date_raw.split("/")
+    year = default_year
 
     amount = float(amount_raw.replace(",", ""))
     balance = float(balance_raw.replace(",", ""))
 
+    credit = amount if sign == "+" else 0.0
+    debit  = amount if sign == "-" else 0.0
+
+    full_date = f"{year}-{month}-{day}"
+
     return {
-        "date": f"{year}-{month}-{day}",
+        "date": full_date,
         "description": desc.strip(),
-        "debit": amount if sign == "-" else 0.0,
-        "credit": amount if sign == "+" else 0.0,
+        "debit": debit,
+        "credit": credit,
         "balance": balance,
         "page": page_num,
     }
 
 
-# ============================================================
-# MBB FORMAT
-# ============================================================
+# -------------------------------
+# MBB Pattern (Maybank Format)
+# Example: "01 Apr 2025 CMS - DR CORP CHG 78.00 - 71,229.76"
+# -------------------------------
 
 PATTERN_MAYBANK_MBB = re.compile(
-    r"(\d{2})\s+([A-Za-z]{3})\s+(\d{4})\s+"
-    r"(.+?)\s+"
-    r"([0-9,]+\.\d{2})\s+([+-])\s+"
-    r"([0-9,]+\.\d{2})"
+    r"(\d{2})\s+([A-Za-z]{3})\s+(\d{4})\s+"  # 01 Apr 2025
+    r"(.+?)\s+"                              # description
+    r"([0-9,]+\.\d{2})\s+([+-])\s+"          # 78.00 -
+    r"([0-9,]+\.\d{2})"                      # 71,229.76
 )
 
 MONTH_MAP = {
@@ -90,41 +67,47 @@ def parse_line_maybank_mbb(line, page_num):
     if not m:
         return None
 
-    day, mon, year, desc, amount_raw, sign, balance_raw = m.groups()
-    month = MONTH_MAP.get(mon.title(), "01")
+    day, mon_abbr, year, desc, amount_raw, sign, balance_raw = m.groups()
+
+    month = MONTH_MAP.get(mon_abbr.title(), "01")
 
     amount = float(amount_raw.replace(",", ""))
     balance = float(balance_raw.replace(",", ""))
 
+    credit = amount if sign == "+" else 0.0
+    debit  = amount if sign == "-" else 0.0
+
+    full_date = f"{year}-{month}-{day}"
+
     return {
-        "date": f"{year}-{month}-{day}",
+        "date": full_date,
         "description": desc.strip(),
-        "debit": amount if sign == "-" else 0.0,
-        "credit": amount if sign == "+" else 0.0,
+        "debit": debit,
+        "credit": credit,
         "balance": balance,
         "page": page_num,
     }
 
 
 # ============================================================
-# MAIN ENTRY (NO app.py CHANGES NEEDED)
+# MAIN ENTRY: Parse any Maybank format (MTASB or MBB)
 # ============================================================
 
 def parse_transactions_maybank(text, page_num, default_year="2025"):
     tx_list = []
-
-    year = extract_statement_year(text, default_year)
 
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
             continue
 
-        tx = parse_line_maybank_mtasb(line, page_num, year)
+        # Try MTASB
+        tx = parse_line_maybank_mtasb(line, page_num, default_year)
         if tx:
             tx_list.append(tx)
             continue
 
+        # Try MBB
         tx = parse_line_maybank_mbb(line, page_num)
         if tx:
             tx_list.append(tx)
