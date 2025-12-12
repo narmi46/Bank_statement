@@ -130,45 +130,6 @@ if all_tx:
     df = df[[c for c in columns if c in df.columns]]
 
     # -----------------------------------------------
-    # Normalize data types
-    # -----------------------------------------------
-
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-    for col in ["debit", "credit", "balance"]:
-        if col in df.columns:
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace(",", "", regex=False)
-                .replace("", "0")
-                .astype(float)
-            )
-
-    st.dataframe(df, use_container_width=True)
-
-# ---------------------------------------------------
-# Display Results & Monthly Summary
-# ---------------------------------------------------
-
-if all_tx:
-    st.subheader("📋 Extracted Transactions")
-
-    df = pd.DataFrame(all_tx)
-
-    # Enforce column order
-    columns = [
-        "date",
-        "description",
-        "debit",
-        "credit",
-        "balance",
-        "page",
-        "source_file"
-    ]
-    df = df[[c for c in columns if c in df.columns]]
-
-    # -----------------------------------------------
     # Normalize data types (for calculations)
     # -----------------------------------------------
 
