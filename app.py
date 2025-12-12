@@ -4,7 +4,10 @@ import json
 import pandas as pd
 from io import BytesIO
 
+# ---------------------------------------------------
 # Import parsers
+# ---------------------------------------------------
+
 from maybank import parse_transactions_maybank
 from public_bank import parse_transactions_pbb
 from rhb import parse_transactions_rhb
@@ -22,7 +25,7 @@ st.write("Upload one or more bank statement PDFs to extract transactions.")
 # Config
 # ---------------------------------------------------
 
-DEFAULT_YEAR = "2025"  # <-- change here if needed
+DEFAULT_YEAR = "2025"  # Change once here if needed
 
 # ---------------------------------------------------
 # Bank Selection (NO AUTO-DETECT)
@@ -64,20 +67,35 @@ if uploaded_files:
             with pdfplumber.open(uploaded_file) as pdf:
                 for page_num, page in enumerate(pdf.pages, start=1):
 
-                    text = page.extract_text() or []
+                    text = page.extract_text() or ""
                     tx = []
 
                     if bank_hint == "maybank":
-                        tx = parse_transactions_maybank(text, page_num, DEFAULT_YEAR)
+                        tx = parse_transactions_maybank(
+                            text,
+                            page_num,
+                            DEFAULT_YEAR
+                        )
 
                     elif bank_hint == "pbb":
-                        tx = parse_transactions_pbb(text, page_num, DEFAULT_YEAR)
+                        tx = parse_transactions_pbb(
+                            text,
+                            page_num,
+                            DEFAULT_YEAR
+                        )
 
                     elif bank_hint == "rhb":
-                        tx = parse_transactions_rhb(text, page_num)
+                        tx = parse_transactions_rhb(
+                            text,
+                            page_num
+                        )
 
                     elif bank_hint == "cimb":
-                        tx = parse_transactions_cimb(page, page_num, uploaded_file.name)
+                        tx = parse_transactions_cimb(
+                            page,
+                            page_num,
+                            uploaded_file.name
+                        )
 
                     if tx:
                         for t in tx:
@@ -88,35 +106,7 @@ if uploaded_files:
             st.error(f"Error processing {uploaded_file.name}: {e}")
 
 # ---------------------------------------------------
-# ASCII TABLE EXPORT FUNCTION
-# ---------------------------------------------------
-
-def dataframe_to_ascii(df):
-    df_str = df.astype(str)
-
-    col_widths = {
-        col: max(df_str[col].map(len).max(), len(col))
-        for col in df_str.columns
-    }
-
-    separator = "+" + "+".join("-" * (col_widths[col] + 2) for col in df_str.columns) + "+"
-
-    header = "|" + "|".join(
-        f" {col.ljust(col_widths[col])} " for col in df_str.columns
-    ) + "|"
-
-    rows = [
-        "|" + "|".join(
-            f" {str(val).ljust(col_widths[col])} "
-            for col, val in row.items()
-        ) + "|"
-        for _, row in df_str.iterrows()
-    ]
-
-    return "\n".join([separator, header, separator] + rows + [separator])
-
-# ---------------------------------------------------
-# Display Results
+# Display Results & Downloads
 # ---------------------------------------------------
 
 if all_tx:
@@ -124,37 +114,53 @@ if all_tx:
 
     df = pd.DataFrame(all_tx)
 
-    cols = ["date", "description", "debit", "credit", "balance", "page", "source_file"]
-    df = df[[c for c in cols if c in df.columns]]
+    # Enforce column order if present
+    columns = [
+        "date",
+        "description",
+        "debit",
+        "credit",
+        "balance",
+        "page",
+        "source_file"
+    ]
+    df = df[[c for c in columns if c in df.columns]]
 
     st.dataframe(df, use_container_width=True)
 
+    # ----------------------------
     # JSON Download
+    # ----------------------------
+
     json_data = json.dumps(df.to_dict(orient="records"), indent=4)
     st.download_button(
         "Download JSON",
         json_data,
         file_name="transactions.json",
         mime="application/json"
-
-    # XLSX Download
-    output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Transactions")
-
-    xlsx_data = output.getvalue()
-
-        st.download_button(
-        "Download Excel (.xlsx)",
-        xlsx_data,
-        file_name="transactions.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ) 
     )
 
-    
+    # ----------------------------
+    # Excel Download (.xlsx)
+    # ----------------------------
 
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(
+            writer,
+            index=False,
+            sheet_name="Transactions"
+        )
+
+    st.download_button(
+        "Download Excel (.xlsx)",
+        output.getvalue(),
+        file_name="transactions.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 else:
     if uploaded_files:
-        st.warning("No transactions found. Check if the correct bank format is selected.")
+        st.warning(
+            "No transactions found. Make sure the correct bank format is selected."
+        )
