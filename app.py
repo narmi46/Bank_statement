@@ -38,7 +38,7 @@ bank_hint = {
 }[bank_choice]
 
 # ---------------------------------------------------
-# Default Year (RESTORED)
+# Default Year
 # ---------------------------------------------------
 
 default_year = st.text_input(
@@ -109,14 +109,15 @@ if uploaded_files:
             st.error(f"Error processing {uploaded_file.name}: {e}")
 
 # ---------------------------------------------------
-# Display Results & Downloads
+# Display Results & Monthly Summary
 # ---------------------------------------------------
 
 if all_tx:
-    st.subheader("Extracted Transactions")
+    st.subheader("📋 Extracted Transactions")
 
     df = pd.DataFrame(all_tx)
 
+    # Enforce column order
     columns = [
         "date",
         "description",
@@ -128,12 +129,53 @@ if all_tx:
     ]
     df = df[[c for c in columns if c in df.columns]]
 
+    # -----------------------------------------------
+    # Normalize data types
+    # -----------------------------------------------
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    for col in ["debit", "credit", "balance"]:
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+                .replace("", "0")
+                .astype(float)
+            )
+
     st.dataframe(df, use_container_width=True)
 
-    # ----------------------------
-    # JSON Download
-    # ----------------------------
+    # -----------------------------------------------
+    # Monthly Summary
+    # -----------------------------------------------
 
+    df["month"] = df["date"].dt.to_period("M").astype(str)
+
+    monthly_summary = (
+        df.groupby("month")
+        .agg(
+            total_debit=("debit", "sum"),
+            total_credit=("credit", "sum"),
+            ending_balance=("balance", "last"),
+            lowest_balance=("balance", "min"),
+            highest_balance=("balance", "max"),
+            transaction_count=("date", "count"),
+            source_files=("source_file", lambda x: ", ".join(sorted(set(x))))
+        )
+        .reset_index()
+        .sort_values("month")
+    )
+
+    st.subheader("📊 Monthly Summary")
+    st.dataframe(monthly_summary, use_container_width=True)
+
+    # -----------------------------------------------
+    # Downloads
+    # -----------------------------------------------
+
+    # JSON
     json_data = json.dumps(df.to_dict(orient="records"), indent=4)
     st.download_button(
         "Download JSON",
@@ -142,16 +184,18 @@ if all_tx:
         mime="application/json"
     )
 
-    # ----------------------------
-    # Excel Download (.xlsx)
-    # ----------------------------
-
+    # Excel (2 sheets)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(
             writer,
             index=False,
             sheet_name="Transactions"
+        )
+        monthly_summary.to_excel(
+            writer,
+            index=False,
+            sheet_name="Monthly Summary"
         )
 
     st.download_button(
