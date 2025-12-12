@@ -147,6 +147,45 @@ if all_tx:
 
     st.dataframe(df, use_container_width=True)
 
+# ---------------------------------------------------
+# Display Results & Monthly Summary
+# ---------------------------------------------------
+
+if all_tx:
+    st.subheader("📋 Extracted Transactions")
+
+    df = pd.DataFrame(all_tx)
+
+    # Enforce column order
+    columns = [
+        "date",
+        "description",
+        "debit",
+        "credit",
+        "balance",
+        "page",
+        "source_file"
+    ]
+    df = df[[c for c in columns if c in df.columns]]
+
+    # -----------------------------------------------
+    # Normalize data types (for calculations)
+    # -----------------------------------------------
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    for col in ["debit", "credit", "balance"]:
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+                .replace("", "0")
+                .astype(float)
+            )
+
+    st.dataframe(df, use_container_width=True)
+
     # -----------------------------------------------
     # Monthly Summary
     # -----------------------------------------------
@@ -172,11 +211,18 @@ if all_tx:
     st.dataframe(monthly_summary, use_container_width=True)
 
     # -----------------------------------------------
-    # Downloads
+    # JSON Export (FIXED for datetime)
     # -----------------------------------------------
 
-    # JSON
-    json_data = json.dumps(df.to_dict(orient="records"), indent=4)
+    df_json = df.copy()
+    if "date" in df_json.columns:
+        df_json["date"] = df_json["date"].dt.strftime("%Y-%m-%d")
+
+    json_data = json.dumps(
+        df_json.to_dict(orient="records"),
+        indent=4
+    )
+
     st.download_button(
         "Download JSON",
         json_data,
@@ -184,7 +230,10 @@ if all_tx:
         mime="application/json"
     )
 
-    # Excel (2 sheets)
+    # -----------------------------------------------
+    # Excel Export (2 Sheets)
+    # -----------------------------------------------
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(
