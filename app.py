@@ -138,15 +138,6 @@ if all_tx:
         mime="application/json"
     )
 
-    # TXT Download
-    ascii_txt = dataframe_to_ascii(df)
-    st.download_button(
-        "Download TXT (ASCII Table)",
-        ascii_txt,
-        file_name="transactions.txt",
-        mime="text/plain"
-    )
-
     # XLSX Download
     output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
