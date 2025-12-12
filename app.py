@@ -2,6 +2,7 @@ import streamlit as st
 import pdfplumber
 import json
 import pandas as pd
+from io import BytesIO
 
 # Import parsers
 from maybank import parse_transactions_maybank
@@ -145,6 +146,21 @@ if all_tx:
         file_name="transactions.txt",
         mime="text/plain"
     )
+
+    # XLSX Download
+    output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Transactions")
+
+    xlsx_data = output.getvalue()
+
+        st.download_button(
+        "Download Excel (.xlsx)",
+        xlsx_data,
+        file_name="transactions.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
 
 else:
     if uploaded_files:
