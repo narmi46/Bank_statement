@@ -136,7 +136,6 @@ if all_tx:
         json_data,
         file_name="transactions.json",
         mime="application/json"
-    )
 
     # XLSX Download
     output = BytesIO()
@@ -150,7 +149,10 @@ if all_tx:
         xlsx_data,
         file_name="transactions.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) 
     )
+
+    
 
 
 else:
